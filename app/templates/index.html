@@ -1,0 +1,53 @@
+{% extends 'layout.html' %}
+{% block content %}
+<h1>آپلود پرونده متنی</h1>
+<form method="post" enctype="multipart/form-data">
+  <input type="file" name="file" accept=".txt" required>
+  <button type="submit">ارسال</button>
+</form>
+{% if records %}
+  <h2>خروجی</h2>
+  <table>
+    <thead>
+      <tr>
+        {% for h in headers %}
+          <th>{{ h }}</th>
+        {% endfor %}
+      </tr>
+    </thead>
+    <tbody>
+      {% for row in records %}
+        <tr>
+          {% for h in headers %}
+            {% if row[h] is mapping %}
+<td>
+  <table class="inner-table">
+    <thead><tr><th>فیلد</th><th>مقدار</th></tr></thead>
+    <tbody>
+      {% for key, value in row[h].items() %}
+      <tr><td>{{ key }}</td><td>{{ value }}</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</td>
+{% elif row[h] is iterable and row[h] and row[h][0] is mapping %}
+<td>
+  <table class="inner-table">
+    <thead><tr><th>نام</th><th>نقش</th></tr></thead>
+    <tbody>
+      {% for person in row[h] %}
+      <tr><td>{{ person.name }}</td><td>{{ person.role }}</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</td>
+{% else %}
+<td>{{ row[h] }}</td>
+{% endif %}
+          {% endfor %}
+        </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+{% endif %}
+{% endblock %}
