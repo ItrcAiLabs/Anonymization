@@ -9,3 +9,11 @@ table { width: 100%; border-collapse: collapse; margin-top: 20px; }
 th, td { border: 1px solid #ccc; padding: 8px; text-align: center; }
 th { background: #007bff; color: white; }
 tr:nth-child(even) { background: #f9f9f9; }
+.string-list {
+  list-style-type: disc;
+  padding-right: 20px;
+  text-align: right;
+}
+.string-list li {
+  margin: 4px 0;
+}
