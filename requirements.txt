@@ -1,11 +1,10 @@
 pandas==2.2.2
 beautifulsoup4==4.12.3
 flask           # Consider specifying a version, e.g. flask==3.0.0
-transformers==4.35.4
+transformers==4.35.2
 spacy==3.7.4
 spacy-transformers==1.3.3
 numpy==1.26.4
-torch==2.2.1+cpu
 accelerate==1.9.0
 hazm==0.9.3
 regex==2023.12.25
