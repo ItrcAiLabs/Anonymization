@@ -3,12 +3,10 @@ from typing import Dict, List, Union
 from hf_ner import hf_extract
 from ner_pipeline import spacy_extract
 
-# Digit normalization map
 _DIGIT_MAP = str.maketrans(
     "۰۱۲۳۴۵۶۷۸۹٠١٢٣٤٥٦٧٨٩",
     "01234567890123456789"
 )
-
 
 def _normalize(text: str) -> str:
     """
@@ -23,10 +21,9 @@ class SensitiveInfoExtractor:
     """
     Extract entities via Regex, HF NER, and SpaCy NER.
     """
-    # Base regex patterns
     _BASE_PATTERNS = {
         "PERSON": re.compile(
-            r"(?:خانم|آقای|سرکار\s+خانم|جناب\s+آقای)?\s*((?:[\u0600-\u06FF]\.){1,4}\s*[\u0600-\u06FF]\.?)",
+            r"(?:خانم|آقای|سرکار\s+خانم|جناب\s+آقای|قاضی|رییس\s+شعبه|دادرس)?\s*((?:[\u0600-\u06FF]\.){1,4}\s*[\u0600-\u06FF]\.?)",
             re.I
         ),
         "COURT_BRANCH": re.compile(r"(شعبه)\s*(\d+|[*])", re.I),
@@ -44,7 +41,6 @@ class SensitiveInfoExtractor:
             re.I
         ),
         "REDACTED": re.compile(r"([\u0600-\u06FF\s]+?)\s*\*\b"),
-        # Address and place patterns
         "ADDRESS": re.compile(
             r"(?:(?:استان|شهر(?:ستان)?|منطقه|خیابان|بلوار|کوچه|میدان|"
             r"پلاک|طبقه|واحد|کدپستی)\s*[\u0600-\u06FF0-9\-,.\s]*){2,}",
@@ -57,8 +53,7 @@ class SensitiveInfoExtractor:
         ),
     }
 
-    # Role inference settings
-    _ROLE_WINDOW = 35
+    _ROLE_WINDOW = 40
     _ROLE_MAP = {
         "خواهان": ["خواهان", "مدعی", "دادخواست"],
         "خوانده": ["خوانده", "طرفیت", "مدعی‌علیه"],
@@ -73,11 +68,36 @@ class SensitiveInfoExtractor:
         txt = _normalize(raw_text)
         ents: Dict[str, List] = {k: [] for k in self._BASE_PATTERNS}
 
-        # 1) Regex layer
         for key, pat in self._BASE_PATTERNS.items():
-            ents[key] = [m.group(0).strip(" .،") for m in pat.finditer(txt)]
+            if key == "PERSON":
+                filtered = []
+                for m in pat.finditer(txt):
+                    name = m.group(1).strip(" .،")
+                    start = m.start(1)
+                    end = m.end(1)
 
-        # 2) HF NER
+                    if len(name) <= 1:
+                        continue
+
+                    # بررسی اینکه نام بخشی از کلمه نباشد
+                    before = txt[start - 1] if start > 0 else " "
+                    after = txt[end] if end < len(txt) else " "
+                    if re.match(r"[\u0600-\u06FF]", before) or re.match(r"[\u0600-\u06FF]", after):
+                        continue
+
+                    # بررسی وجود واژه‌های نقش در نزدیکی
+                    window_start = max(0, start - self._ROLE_WINDOW)
+                    window_end = min(len(txt), end + self._ROLE_WINDOW)
+                    context = txt[window_start:window_end]
+
+                    if any(kw in context for kws in self._ROLE_MAP.values() for kw in kws):
+                        filtered.append(name)
+
+                ents[key] = filtered
+            else:
+                ents[key] = [m.group(0).strip(" .،") for m in pat.finditer(txt)]
+
+        # HF NER
         if self.use_hf:
             for ent in hf_extract(txt):
                 lbl = ent["label"]
@@ -86,7 +106,7 @@ class SensitiveInfoExtractor:
                 elif lbl in ("LOC", "FAC", "GPE"):
                     ents["PLACE"].append(ent["text"])
 
-        # 3) spaCy NER
+        # spaCy NER
         if self.use_spacy:
             for ent in spacy_extract(txt):
                 lbl = ent["label"]
@@ -95,7 +115,7 @@ class SensitiveInfoExtractor:
                 elif lbl in ("LOC", "GPE", "FAC"):
                     ents["PLACE"].append(ent["text"])
 
-        # Deduplicate
+        # Dedup
         for k in ents:
             seen = set()
             uniq = []
@@ -105,18 +125,20 @@ class SensitiveInfoExtractor:
                     uniq.append(v)
             ents[k] = uniq
 
-        # Role assignment
-        persons_with_roles = []
-        for p in ents["PERSON"]:
-            persons_with_roles.append({"name": p, "role": self._infer_role(txt, p)})
-        ents["PERSON"] = persons_with_roles
+        # Assign roles
+        ents["PERSON"] = [
+            {"name": p, "role": self._infer_role(txt, p)}
+            for p in ents["PERSON"]
+        ]
 
-        # Court info
-        branch = (
-            "REDACTED" if "*" in ents["COURT_BRANCH"] else
-            (ents["COURT_BRANCH"][0] if ents["COURT_BRANCH"] else "نامشخص")
-        )
-        ents["COURT_INFO"] = {"branch": branch, "judges": ents.get("JUDGE", ["نامشخص"]) }
+        ents["COURT_INFO"] = {
+            "branch": (
+                "REDACTED" if "*" in ents["COURT_BRANCH"] else
+                (ents["COURT_BRANCH"][0] if ents["COURT_BRANCH"] else "نامشخص")
+            ),
+            "judges": ents.get("JUDGE", ["نامشخص"])
+        }
+
         return ents
 
     def _infer_role(self, text: str, person: str) -> str:
@@ -124,12 +146,9 @@ class SensitiveInfoExtractor:
         if idx < 0:
             return "نامشخص"
         start = max(0, idx - self._ROLE_WINDOW)
-        end   = min(len(text), idx + self._ROLE_WINDOW)
+        end = min(len(text), idx + self._ROLE_WINDOW)
         snippet = text[start:end]
         for role, kws in self._ROLE_MAP.items():
             if any(kw in snippet for kw in kws):
                 return role
         return "نامشخص"
-
-
-
