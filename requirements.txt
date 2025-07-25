@@ -1,11 +1,14 @@
 pandas==2.2.2
 beautifulsoup4==4.12.3
-flask
+flask           # Consider specifying a version, e.g. flask==3.0.0
 transformers==4.53.3
 spacy==3.7.4
 spacy-transformers==1.3.3
 numpy==1.26.4
 regex==2024.6.1
-torch==2.2.1+cpu --index-url https://download.pytorch.org/whl/cpu
+torch==2.2.1+cpu
 accelerate==1.9.0
 hazm==0.9.3
+
+# Use custom index for torch (CPU-only)
+--index-url https://download.pytorch.org/whl/cpu

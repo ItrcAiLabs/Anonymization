@@ -130,3 +130,6 @@ class SensitiveInfoExtractor:
             if any(kw in snippet for kw in kws):
                 return role
         return "نامشخص"
+
+
+
