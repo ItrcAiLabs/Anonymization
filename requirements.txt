@@ -10,5 +10,3 @@ torch==2.2.1+cpu
 accelerate==1.9.0
 hazm==0.9.3
 
-# Use custom index for torch (CPU-only)
---index-url https://download.pytorch.org/whl/cpu
