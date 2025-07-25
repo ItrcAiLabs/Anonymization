@@ -1,2 +1,5 @@
 pandas
 beautifulsoup4
+flask
+transformers
+spacy
